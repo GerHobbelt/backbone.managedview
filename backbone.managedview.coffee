@@ -1,23 +1,19 @@
-class Backbone.ManagedView extends Backbone.View
-  _configure: (options) ->
-    @views ||= {}
-    if options.views
-      @views = options.views
-    if options.insert
-      @insert = options.insert
-    if _(@insert).isFunction()
+class Backbone.View extends Backbone.View
+  constructor: (options={}) ->
+    @views = {}
+    _.extend this, _.pick(options, ["views", "insert"])
+    if _.isFunction @insert
       @insertOnce = _.once @insert
-    super
+    super options
 
   # Render view and its sub-views
   render: =>
-    unless @manage
-      super
-      return
-    @beforeRender?()
+    unless @manage then return super
+    if @filter?() then return false
     @insertOnce?()
     @delegateEvents()
-    @$el.html @template?(this)
+    @beforeRender?()
+    @$el.empty().append @template?(this)
     @renderViews()
     @afterRender?()
     @trigger "render"
@@ -25,9 +21,7 @@ class Backbone.ManagedView extends Backbone.View
 
   # Remove view and its sub-views
   remove: =>
-    unless @manage
-      super
-      return
+    unless @manage then return super
     @beforeRemove?()
     @removeViews()
     super
@@ -38,24 +32,22 @@ class Backbone.ManagedView extends Backbone.View
   # Collect all view instances and return as a flat array
   collectViews: =>
     views = []
-    _(@views).each (view, name) =>
-      if _(view).isArray()
-        for viewChild in view
-          views.push viewChild
+    for name, view of @views
+      if _.isArray view
+        for childView in view
+          views.push childView
       else
         views.push view
     return views
 
   # Render all view instances in @views and insert them to the DOM
   renderViews: =>
-    _(@views).each (view, name) =>
+    for name, view of @views
       $el = @$(name)
       $el = @$el if name.length is 0
-      if _(view).isArray()
+      if _.isArray view
         for childView in view
-          insert = "append"
-          if _(childView.insert).isString()
-            insert = childView.insert
+          insert = childView.insert or "append"
           $el[insert] childView.el
           childView.render()
       else
@@ -65,8 +57,5 @@ class Backbone.ManagedView extends Backbone.View
 
   # Remove all view instances in @views
   removeViews: =>
-    for view in @collectViews()
-      view.remove()
+    _.invoke @collectViews(), "remove"
     @views = {}
-
-Backbone.View = Backbone.ManagedView
